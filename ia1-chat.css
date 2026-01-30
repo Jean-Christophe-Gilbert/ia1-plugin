@@ -1,0 +1,392 @@
+/**
+ * Styles du widget de chat IA1
+ *
+ * @package IA1
+ * @version 3.1.10
+ */
+
+/* ==========================================================================
+   WIDGET PRINCIPAL
+   ========================================================================== */
+
+.ia1-chat-widget {
+    max-width: 600px;
+    margin: 0 auto;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: #ffffff;
+}
+
+/* ==========================================================================
+   EN-TÊTE
+   ========================================================================== */
+
+.ia1-chat-header {
+    display: flex;
+    align-items: center;
+    padding: 16px 20px;
+    background-color: #2271b1;
+    color: white;
+}
+
+.ia1-chat-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #fff;
+    color: #2271b1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 16px;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.ia1-chat-info {
+    flex: 1;
+}
+
+.ia1-chat-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+    line-height: 1.3;
+}
+
+.ia1-chat-subtitle {
+    font-size: 13px;
+    margin: 2px 0 0 0;
+    opacity: 0.9;
+    line-height: 1.3;
+}
+
+/* ==========================================================================
+   CORPS DU CHAT
+   ========================================================================== */
+
+.ia1-chat-body {
+    padding: 20px;
+    overflow-y: auto;
+    background: #f8f9fa;
+    max-height: 500px;
+}
+
+.ia1-message {
+    display: flex;
+    margin-bottom: 20px;
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.ia1-message-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: #e0e0e0;
+    color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 13px;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.ia1-message-assistant .ia1-message-avatar {
+    background-color: #2271b1;
+    color: white;
+}
+
+.ia1-message-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.ia1-message-text {
+    background: white;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #333;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.ia1-message-user .ia1-message-text {
+    background: #2271b1;
+    color: white;
+}
+
+/* ==========================================================================
+   SOURCES (VERSION AMÉLIORÉE - LISTE À PUCES)
+   ========================================================================== */
+
+.ia1-message-sources {
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: #f0f7ff;
+    border-left: 3px solid #2271b1;
+    border-radius: 8px;
+}
+
+.ia1-message-sources-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #2271b1;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.ia1-message-sources-title svg {
+    margin-right: 4px;
+}
+
+/* Liste à puces pour les sources */
+.ia1-message-sources-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.ia1-message-sources-list li {
+    margin-bottom: 6px;
+    padding-left: 20px;
+    position: relative;
+}
+
+.ia1-message-sources-list li:last-child {
+    margin-bottom: 0;
+}
+
+/* Puce personnalisée */
+.ia1-message-sources-list li::before {
+    content: '•';
+    position: absolute;
+    left: 6px;
+    color: #2271b1;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+/* Liens des sources */
+.ia1-message-source-link {
+    color: #2271b1;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+    line-height: 1.4;
+}
+
+.ia1-message-source-link:hover {
+    color: #135e96;
+    text-decoration: underline;
+}
+
+.ia1-message-source-link svg {
+    opacity: 0.6;
+    flex-shrink: 0;
+}
+
+.ia1-message-source-link:hover svg {
+    opacity: 1;
+}
+
+/* ==========================================================================
+   ZONE DE SAISIE
+   ========================================================================== */
+
+.ia1-chat-input-container {
+    border-top: 1px solid #e0e0e0;
+    background: white;
+    padding: 12px 16px;
+}
+
+.ia1-chat-input-wrapper {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.ia1-chat-input {
+    flex: 1;
+    border: 1px solid #e0e0e0;
+    border-radius: 20px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-family: inherit;
+    resize: none;
+    max-height: 120px;
+    transition: border-color 0.2s;
+}
+
+.ia1-chat-input:focus {
+    outline: none;
+    border-color: #2271b1;
+}
+
+.ia1-chat-send-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background-color: #2271b1;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.ia1-chat-send-btn:hover:not(:disabled) {
+    background-color: #135e96;
+    transform: scale(1.05);
+}
+
+.ia1-chat-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ia1-chat-info-text {
+    margin-top: 8px;
+    text-align: center;
+    font-size: 11px;
+    color: #999;
+}
+
+.ia1-chat-info-text a {
+    color: #2271b1;
+    text-decoration: none;
+}
+
+.ia1-chat-info-text a:hover {
+    text-decoration: underline;
+}
+
+/* ==========================================================================
+   LOADER
+   ========================================================================== */
+
+.ia1-chat-loader {
+    position: absolute;
+    bottom: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    padding: 12px 20px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.ia1-chat-loader-dots {
+    display: flex;
+    gap: 6px;
+}
+
+.ia1-chat-loader-dots span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #2271b1;
+    animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.ia1-chat-loader-dots span:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.ia1-chat-loader-dots span:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes bounce {
+    0%, 80%, 100% {
+        transform: scale(0);
+    }
+    40% {
+        transform: scale(1);
+    }
+}
+
+/* ==========================================================================
+   MESSAGES D'ERREUR
+   ========================================================================== */
+
+.ia1-error {
+    background: #fee;
+    border: 1px solid #fcc;
+    color: #c33;
+    padding: 16px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.ia1-error a {
+    color: #c33;
+    font-weight: 600;
+}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+
+@media (max-width: 640px) {
+    .ia1-chat-widget {
+        border-radius: 0;
+        max-width: 100%;
+    }
+    
+    .ia1-chat-body {
+        padding: 16px;
+    }
+    
+    .ia1-message-text {
+        font-size: 13px;
+    }
+    
+    .ia1-message-source-link {
+        font-size: 12px;
+    }
+}
+
+/* ==========================================================================
+   ACCESSIBILITÉ
+   ========================================================================== */
+
+.ia1-chat-send-btn:focus,
+.ia1-chat-input:focus {
+    outline: 2px solid #2271b1;
+    outline-offset: 2px;
+}
+
+/* Amélioration de la lisibilité */
+.ia1-message-text a {
+    color: inherit;
+    text-decoration: underline;
+}
+
+.ia1-message-user .ia1-message-text a {
+    color: white;
+}
