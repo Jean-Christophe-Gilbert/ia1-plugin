@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Constantes du plugin
-define( 'IA1_VERSION', '3.1.9' );
+define( 'IA1_VERSION', '3.1.10' );
 define( 'IA1_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'IA1_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'IA1_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
