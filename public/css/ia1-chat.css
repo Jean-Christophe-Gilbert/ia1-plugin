@@ -161,7 +161,6 @@
 .ia1-message-sources {
     margin-top: 10px;
     padding-top: 10px;
-    border-top: 1px solid #e0e0e0;
 }
 
 .ia1-message-sources-title {
@@ -169,6 +168,7 @@
     font-weight: 600;
     color: #646970;
     margin-bottom: 6px;
+    display: none;
 }
 
 .ia1-message-sources-list {
@@ -180,7 +180,7 @@
 .ia1-message-source-link {
     font-size: 13px;
     color: #2271b1;
-    text-decoration: none;
+    text-decoration: none !important;
     display: flex;
     align-items: center;
     gap: 6px;

@@ -98,7 +98,7 @@ class IA1_Mistral {
      */
     private function build_user_prompt( $question, $context_text ) {
         return sprintf(
-            "Voici le contenu disponible sur le site :\n\n%s\n\n---\n\nQuestion de l'utilisateur : %s\n\nRéponds à la question en te basant UNIQUEMENT sur le contenu ci-dessus. Si tu ne trouves pas l'information, dis-le clairement. Sois concis et précis.",
+            "Voici le contenu disponible sur le site :\n\n%s\n\n---\n\nQuestion de l'utilisateur : %s\n\nRéponds à la question en te basant UNIQUEMENT sur le contenu ci-dessus. Si tu ne trouves pas l'information, dis-le clairement. Sois concis et précis.\n\nIMPORTANT : N'utilise AUCUN formatage Markdown (pas de **, pas de #, pas de liste à puces). Écris en texte simple avec juste des retours à la ligne pour aérer.",
             $context_text,
             $question
         );
@@ -110,9 +110,9 @@ class IA1_Mistral {
     private function prepare_sources( $contexts ) {
         $sources = array();
         
-        foreach ( $contexts as $context ) {
+        foreach ( $contexts as $i => $context ) {
             $sources[] = array(
-                'title' => $context['title'],
+                'title' => sprintf( '%d : %s', $i + 1, $context['title'] ),
                 'url' => $context['url'],
                 'post_type' => $context['post_type']
             );
