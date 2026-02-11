@@ -5,6 +5,23 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ---
 
+## [3.2.1] — 2026-02-11
+
+### Corrigé
+
+- **BUG MAJEUR : Scoring de recherche** : Le système n'utilisait que le premier mot de la requête pour calculer la pertinence, ce qui rendait les recherches multi-mots inefficaces
+  - Avant : "Comment fonctionne IA1" → seul "comment" était utilisé pour le scoring
+  - Maintenant : TOUS les mots de la requête sont pris en compte dans le calcul de pertinence
+  - Impact : Recherche beaucoup plus précise, l'IA trouve maintenant les bonnes pages même avec des questions complexes
+- **Extraction d'excerpts** : Utilise maintenant tous les mots de la requête pour extraire les passages pertinents, pas seulement le premier
+
+### Technique
+
+- Refonte de la fonction `search()` dans `class-ia1-indexer.php` pour calculer le score sur tous les mots-clés
+- Amélioration de l'algorithme de scoring : chaque mot est maintenant pondéré dans titre, taxonomies et contenu
+
+---
+
 ## [3.1.10] — 2026-01-30
 
 ### Ajouté

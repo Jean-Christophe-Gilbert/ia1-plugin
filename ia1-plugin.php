@@ -3,7 +3,7 @@
  * Plugin Name: IA1 - Intelligence Artificielle Locale
  * Plugin URI: https://ia1.fr
  * Description: Assistant IA conversationnel local basé sur Mistral AI, avec indexation RAG de votre contenu WordPress. Cultivé à Niort, France.
- * Version: 3.2.0
+ * Version: 3.2.1
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: IA1
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Constantes du plugin
-define( 'IA1_VERSION', '3.2.0' );
+define( 'IA1_VERSION', '3.2.1' );
 define( 'IA1_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'IA1_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'IA1_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );

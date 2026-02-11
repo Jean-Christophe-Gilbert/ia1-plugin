@@ -244,29 +244,38 @@ class IA1_Indexer {
         
         $where = implode( ' OR ', $where_parts );
         
-        // Requête SQL avec scoring multicritère
+        // Construire les parties du score pour TOUS les mots
+        $score_parts = array();
+        $prepare_values = array();
+        
+        foreach ( $query_words as $word ) {
+            $word_safe = $wpdb->esc_like( $word );
+            
+            // Ajouter au SQL : fréquence dans titre
+            $score_parts[] = "(LENGTH(LOWER(title)) - LENGTH(REPLACE(LOWER(title), %s, ''))) * 15";
+            $prepare_values[] = $word_safe;
+            
+            // Ajouter au SQL : fréquence dans taxonomies
+            $score_parts[] = "(LENGTH(LOWER(taxonomy_terms)) - LENGTH(REPLACE(LOWER(taxonomy_terms), %s, ''))) * 20";
+            $prepare_values[] = $word_safe;
+            
+            // Ajouter au SQL : fréquence dans contenu
+            $score_parts[] = "(LENGTH(LOWER(content)) - LENGTH(REPLACE(LOWER(content), %s, ''))) * 2";
+            $prepare_values[] = $word_safe;
+        }
+        
+        $score_formula = implode( ' + ', $score_parts );
+        
+        // Requête SQL avec scoring multicritère sur TOUS les mots
         $sql = "
             SELECT *,
                 (
-                    -- Score 1: Titre exact (très important)
-                    CASE 
-                        WHEN LOWER(title) LIKE %s THEN 100
-                        ELSE 0
-                    END
+                    {$score_formula}
                     +
-                    -- Score 2: Fréquence dans le titre (important)
-                    (LENGTH(LOWER(title)) - LENGTH(REPLACE(LOWER(title), %s, ''))) * 15
-                    +
-                    -- Score 3: Fréquence dans les taxonomies (important pour catégories)
-                    (LENGTH(LOWER(taxonomy_terms)) - LENGTH(REPLACE(LOWER(taxonomy_terms), %s, ''))) * 20
-                    +
-                    -- Score 4: Fréquence dans le contenu
-                    (LENGTH(LOWER(content)) - LENGTH(REPLACE(LOWER(content), %s, ''))) * 2
-                    +
-                    -- Score 5: Hub score (pages de présentation)
+                    -- Score bonus: Hub score (pages de présentation)
                     hub_score * 0.5
                     +
-                    -- Score 6: Type de post (pages = hubs souvent)
+                    -- Score bonus: Type de post (pages = hubs souvent)
                     CASE 
                         WHEN post_type = 'page' THEN 10
                         WHEN post_type = 'post' THEN 5
@@ -279,26 +288,19 @@ class IA1_Indexer {
             LIMIT %d
         ";
         
-        // Paramètres pour le scoring (premier mot comme référence)
-        $first_word = reset( $query_words );
-        $first_word_safe = $wpdb->esc_like( $first_word );
+        // Préparer avec tous les paramètres + la limite
+        $prepare_values[] = $limit;
         
-        $prepared = $wpdb->prepare(
-            $sql,
-            '%' . $first_word_safe . '%', // titre exact
-            $first_word_safe,              // fréquence titre
-            $first_word_safe,              // fréquence taxonomies
-            $first_word_safe,              // fréquence contenu
-            $limit
-        );
+        $prepared = $wpdb->prepare( $sql, ...$prepare_values );
         
         $results = $wpdb->get_results( $prepared, ARRAY_A );
         
         // Ajouter les excerpts et enrichir les résultats
         foreach ( $results as &$result ) {
+            // Utiliser tous les mots pour l'excerpt, pas juste le premier
             $result['excerpt'] = $this->extract_relevant_excerpt( 
                 $result['content'], 
-                $first_word 
+                implode( ' ', $query_words )
             );
             
             // Ajouter les taxonomies dans le résultat pour affichage
