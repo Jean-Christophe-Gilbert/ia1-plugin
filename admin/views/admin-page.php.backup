@@ -15,6 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
         
         <!-- Header -->
         <h1 class="ia1-admin-title">
+            <img src="https://ia1.fr/wp-content/uploads/2026/01/cropped-Gemini_Generated_Image_e2r4dee2r4dee2r4.png" alt="IA1 Logo" class="ia1-logo">
             Configuration IA1
         </h1>
         
