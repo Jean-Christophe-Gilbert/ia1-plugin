@@ -3,7 +3,7 @@
  * Plugin Name: IA1 - Intelligence Artificielle Locale
  * Plugin URI: https://ia1.fr
  * Description: Assistant IA conversationnel local basé sur Mistral AI, avec indexation RAG de votre contenu WordPress. Cultivé à Niort, France.
- * Version: 3.1.10
+ * Version: 3.2.0
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: IA1
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Constantes du plugin
-define( 'IA1_VERSION', '3.1.10' );
+define( 'IA1_VERSION', '3.2.0' );
 define( 'IA1_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'IA1_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'IA1_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -113,6 +113,7 @@ class IA1_Plugin {
         
         $table_name = $wpdb->prefix . 'ia1_index';
         
+        // Structure de la table avec les nouvelles colonnes v3.2
         $sql = "CREATE TABLE IF NOT EXISTS $table_name (
             id bigint(20) NOT NULL AUTO_INCREMENT,
             post_id bigint(20) NOT NULL,
@@ -120,11 +121,14 @@ class IA1_Plugin {
             title text NOT NULL,
             content longtext NOT NULL,
             url varchar(255) NOT NULL,
-            embedding longtext,
+            taxonomy_terms text,
+            searchable_text longtext,
+            hub_score int DEFAULT 0,
             indexed_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
             KEY post_id (post_id),
-            KEY post_type (post_type)
+            KEY post_type (post_type),
+            KEY hub_score (hub_score)
         ) $charset_collate;";
         
         require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
@@ -137,7 +141,7 @@ class IA1_Plugin {
             'ia1_temperature' => 0.7,
             'ia1_max_contexts' => 5,
             
-            // Personnalisation (NOUVEAU)
+            // Personnalisation
             'ia1_assistant_name' => 'IA1',
             'ia1_assistant_subtitle' => 'Votre assistante IA locale',
             'ia1_welcome_message' => 'Bonjour ! Comment puis-je vous aider aujourd\'hui ?',
@@ -155,6 +159,34 @@ class IA1_Plugin {
         
         // Version du plugin
         update_option( 'ia1_version', IA1_VERSION );
+        
+        // Migration automatique de la base de données vers v3.2
+        $current_db_version = get_option( 'ia1_db_version', '3.0.0' );
+        
+        if ( version_compare( $current_db_version, '3.2.0', '<' ) ) {
+            // Charger le script de migration
+            if ( file_exists( IA1_PLUGIN_DIR . 'includes/ia1-migration-v3-2.php' ) ) {
+                require_once IA1_PLUGIN_DIR . 'includes/ia1-migration-v3-2.php';
+                
+                $migration_result = ia1_migrate_database_v3_2();
+                
+                if ( $migration_result['success'] ) {
+                    update_option( 'ia1_db_version', '3.2.0' );
+                    
+                    // Log pour debug (visible dans debug.log si WP_DEBUG = true)
+                    if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                        error_log( 'IA1 Migration v3.2: ' . $migration_result['message'] );
+                    }
+                    
+                    // Notification admin pour confirmer la migration
+                    set_transient( 'ia1_migration_notice', $migration_result['message'], 300 );
+                }
+            } else {
+                // Si le fichier de migration n'existe pas, marquer quand même comme v3.2
+                // car la table a été créée avec la bonne structure via dbDelta
+                update_option( 'ia1_db_version', '3.2.0' );
+            }
+        }
     }
     
     /**
@@ -204,6 +236,22 @@ class IA1_Plugin {
         }
     }
 }
+
+/**
+ * Afficher la notification de migration si présente
+ */
+add_action( 'admin_notices', function() {
+    $migration_notice = get_transient( 'ia1_migration_notice' );
+    
+    if ( $migration_notice ) {
+        echo '<div class="notice notice-success is-dismissible">';
+        echo '<p><strong>IA1 v3.2 :</strong> ' . esc_html( $migration_notice ) . '</p>';
+        echo '<p>N\'oubliez pas de <strong>réindexer votre contenu</strong> dans IA1 → Indexation pour bénéficier des améliorations (catégories, tags, pages hub).</p>';
+        echo '</div>';
+        
+        delete_transient( 'ia1_migration_notice' );
+    }
+});
 
 /**
  * Démarre le plugin

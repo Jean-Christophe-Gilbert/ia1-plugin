@@ -1,6 +1,6 @@
 <?php
 /**
- * Gestion de l'indexation et de la recherche
+ * Gestion de l'indexation et de la recherche - VERSION AMÉLIORÉE
  *
  * @package IA1
  */
@@ -65,7 +65,7 @@ class IA1_Indexer {
     }
     
     /**
-     * Indexe un post
+     * Indexe un post avec TOUTES ses métadonnées
      */
     public function index_post( $post ) {
         global $wpdb;
@@ -75,10 +75,19 @@ class IA1_Indexer {
         $content = preg_replace( '/\s+/', ' ', $content );
         $content = trim( $content );
         
-        // Ne pas indexer si le contenu est trop court
-        if ( strlen( $content ) < 50 ) {
+        // Extraire TOUTES les taxonomies (catégories, tags, taxonomies custom)
+        $taxonomy_terms = $this->get_all_taxonomy_terms( $post->ID );
+        
+        // Créer un champ de recherche enrichi qui combine tout
+        $searchable_text = $this->build_searchable_text( $post, $content, $taxonomy_terms );
+        
+        // Ne pas indexer si le contenu est trop court ET pas de taxonomies
+        if ( strlen( $content ) < 50 && empty( $taxonomy_terms ) ) {
             return false;
         }
+        
+        // Calculer un score de "hub page" (page importante qui présente du contenu)
+        $hub_score = $this->calculate_hub_score( $post, $content );
         
         // Insérer ou mettre à jour
         $wpdb->replace(
@@ -89,16 +98,114 @@ class IA1_Indexer {
                 'title' => $post->post_title,
                 'content' => $content,
                 'url' => get_permalink( $post->ID ),
+                'taxonomy_terms' => $taxonomy_terms,
+                'searchable_text' => $searchable_text,
+                'hub_score' => $hub_score,
                 'indexed_at' => current_time( 'mysql' )
             ),
-            array( '%d', '%s', '%s', '%s', '%s', '%s' )
+            array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s' )
         );
         
         return true;
     }
     
     /**
-     * Recherche dans l'index - VERSION SIMPLE ET ROBUSTE
+     * Récupère TOUS les termes de taxonomies d'un post
+     */
+    private function get_all_taxonomy_terms( $post_id ) {
+        $all_terms = array();
+        
+        // Récupérer toutes les taxonomies associées au post
+        $taxonomies = get_object_taxonomies( get_post_type( $post_id ) );
+        
+        foreach ( $taxonomies as $taxonomy ) {
+            $terms = get_the_terms( $post_id, $taxonomy );
+            
+            if ( $terms && ! is_wp_error( $terms ) ) {
+                foreach ( $terms as $term ) {
+                    $all_terms[] = $term->name;
+                }
+            }
+        }
+        
+        return implode( ', ', $all_terms );
+    }
+    
+    /**
+     * Construit un texte de recherche enrichi
+     */
+    private function build_searchable_text( $post, $content, $taxonomy_terms ) {
+        $parts = array();
+        
+        // Titre (poids x3 car très important)
+        $parts[] = $post->post_title;
+        $parts[] = $post->post_title;
+        $parts[] = $post->post_title;
+        
+        // Taxonomies (poids x2)
+        if ( ! empty( $taxonomy_terms ) ) {
+            $parts[] = $taxonomy_terms;
+            $parts[] = $taxonomy_terms;
+        }
+        
+        // Contenu
+        $parts[] = $content;
+        
+        // Excerpt si différent
+        if ( ! empty( $post->post_excerpt ) ) {
+            $parts[] = $post->post_excerpt;
+        }
+        
+        return implode( ' ', $parts );
+    }
+    
+    /**
+     * Calcule un score de "page hub" (page importante de présentation)
+     */
+    private function calculate_hub_score( $post, $content ) {
+        $score = 0;
+        
+        // Type de post (pages sont souvent des hubs)
+        if ( $post->post_type === 'page' ) {
+            $score += 20;
+        }
+        
+        // Titre court et descriptif (souvent des pages de présentation)
+        $title_words = str_word_count( $post->post_title );
+        if ( $title_words <= 4 ) {
+            $score += 15;
+        }
+        
+        // Contenu ni trop court ni trop long (pages de présentation)
+        $content_length = strlen( $content );
+        if ( $content_length > 200 && $content_length < 2000 ) {
+            $score += 10;
+        }
+        
+        // Mots-clés de pages hub dans le contenu
+        $hub_keywords = array(
+            'découvrir', 'explorer', 'voici', 'présentation', 
+            'collection', 'mes', 'portfolio', 'galerie',
+            'catégorie', 'archives', 'tous les', 'toutes les'
+        );
+        
+        $content_lower = strtolower( $content );
+        foreach ( $hub_keywords as $keyword ) {
+            if ( strpos( $content_lower, $keyword ) !== false ) {
+                $score += 5;
+            }
+        }
+        
+        // Présence de listes ou de liens (signe de page de navigation)
+        if ( preg_match_all( '/<li>|<ul>|<ol>/', $post->post_content ) > 5 ) {
+            $score += 10;
+        }
+        
+        return min( $score, 100 ); // Score max = 100
+    }
+    
+    /**
+     * Recherche dans l'index - VERSION AMÉLIORÉE AVEC DÉTECTION D'INTENTION
      */
     public function search( $query, $limit = null ) {
         global $wpdb;
@@ -109,10 +216,10 @@ class IA1_Indexer {
         
         // Nettoyer la requête
         $query = sanitize_text_field( $query );
-        $query = strtolower( $query );
+        $query_lower = strtolower( $query );
         
         // Mots-clés de la requête
-        $query_words = array_filter( explode( ' ', $query ), function( $word ) {
+        $query_words = array_filter( explode( ' ', $query_lower ), function( $word ) {
             return strlen( $word ) > 2; // Ignorer les mots de moins de 3 caractères
         });
         
@@ -120,31 +227,51 @@ class IA1_Indexer {
             return array();
         }
         
-        // Construction de la clause WHERE
+        // Détecter l'intention de la question
+        $intent = $this->detect_search_intent( $query_lower );
+        
+        // Construction de la clause WHERE avec recherche enrichie
         $where_parts = array();
         foreach ( $query_words as $word ) {
             $word_safe = $wpdb->esc_like( $word );
+            
+            // Chercher dans le texte enrichi (inclut taxonomies)
             $where_parts[] = $wpdb->prepare(
-                "(LOWER(title) LIKE %s OR LOWER(content) LIKE %s)",
-                '%' . $word_safe . '%',
+                "(LOWER(searchable_text) LIKE %s)",
                 '%' . $word_safe . '%'
             );
         }
         
         $where = implode( ' OR ', $where_parts );
         
-        // Requête SQL avec scoring
+        // Requête SQL avec scoring multicritère
         $sql = "
             SELECT *,
                 (
+                    -- Score 1: Titre exact (très important)
                     CASE 
                         WHEN LOWER(title) LIKE %s THEN 100
                         ELSE 0
                     END
                     +
-                    (LENGTH(title) - LENGTH(REPLACE(LOWER(title), %s, ''))) * 10
+                    -- Score 2: Fréquence dans le titre (important)
+                    (LENGTH(LOWER(title)) - LENGTH(REPLACE(LOWER(title), %s, ''))) * 15
                     +
-                    (LENGTH(content) - LENGTH(REPLACE(LOWER(content), %s, ''))) * 1
+                    -- Score 3: Fréquence dans les taxonomies (important pour catégories)
+                    (LENGTH(LOWER(taxonomy_terms)) - LENGTH(REPLACE(LOWER(taxonomy_terms), %s, ''))) * 20
+                    +
+                    -- Score 4: Fréquence dans le contenu
+                    (LENGTH(LOWER(content)) - LENGTH(REPLACE(LOWER(content), %s, ''))) * 2
+                    +
+                    -- Score 5: Hub score (pages de présentation)
+                    hub_score * 0.5
+                    +
+                    -- Score 6: Type de post (pages = hubs souvent)
+                    CASE 
+                        WHEN post_type = 'page' THEN 10
+                        WHEN post_type = 'post' THEN 5
+                        ELSE 0
+                    END
                 ) as relevance_score
             FROM {$this->table_name}
             WHERE {$where}
@@ -152,29 +279,77 @@ class IA1_Indexer {
             LIMIT %d
         ";
         
-        // Paramètres pour le scoring (on prend le premier mot comme référence)
+        // Paramètres pour le scoring (premier mot comme référence)
         $first_word = reset( $query_words );
         $first_word_safe = $wpdb->esc_like( $first_word );
         
         $prepared = $wpdb->prepare(
             $sql,
-            '%' . $first_word_safe . '%',
-            $first_word_safe,
-            $first_word_safe,
+            '%' . $first_word_safe . '%', // titre exact
+            $first_word_safe,              // fréquence titre
+            $first_word_safe,              // fréquence taxonomies
+            $first_word_safe,              // fréquence contenu
             $limit
         );
         
         $results = $wpdb->get_results( $prepared, ARRAY_A );
         
-        // Ajouter les excerpts
+        // Ajouter les excerpts et enrichir les résultats
         foreach ( $results as &$result ) {
             $result['excerpt'] = $this->extract_relevant_excerpt( 
                 $result['content'], 
                 $first_word 
             );
+            
+            // Ajouter les taxonomies dans le résultat pour affichage
+            $result['taxonomies'] = $result['taxonomy_terms'];
+            
+            // Score de confiance (pour debug si besoin)
+            $result['confidence'] = min( 100, $result['relevance_score'] / 10 );
         }
         
         return $results;
+    }
+    
+    /**
+     * Détecte l'intention de la recherche
+     */
+    private function detect_search_intent( $query ) {
+        $intent = array(
+            'type' => 'general',
+            'looking_for_category' => false,
+            'looking_for_list' => false,
+            'looking_for_specific' => false
+        );
+        
+        // Recherche de catégorie/collection
+        $category_patterns = array(
+            '/tous les?/', '/toutes les?/', '/liste de/', '/catégorie/',
+            '/voir les?/', '/afficher les?/', '/mes/', '/portfolio/'
+        );
+        
+        foreach ( $category_patterns as $pattern ) {
+            if ( preg_match( $pattern, $query ) ) {
+                $intent['looking_for_category'] = true;
+                $intent['type'] = 'category';
+                break;
+            }
+        }
+        
+        // Recherche de liste
+        if ( strpos( $query, 'combien' ) !== false || 
+             strpos( $query, 'liste' ) !== false ||
+             strpos( $query, 'quels sont' ) !== false ) {
+            $intent['looking_for_list'] = true;
+        }
+        
+        // Recherche spécifique (question avec "quel", "où", "comment")
+        if ( preg_match( '/^(quel|quelle|où|comment|pourquoi|quand)/', $query ) ) {
+            $intent['looking_for_specific'] = true;
+            $intent['type'] = 'specific';
+        }
+        
+        return $intent;
     }
     
     /**
@@ -228,5 +403,44 @@ class IA1_Indexer {
             array( 'post_id' => $post_id ),
             array( '%d' )
         );
+    }
+    
+    /**
+     * Récupère des statistiques sur l'index
+     */
+    public function get_index_stats() {
+        global $wpdb;
+        
+        $stats = array(
+            'total' => 0,
+            'by_type' => array(),
+            'with_taxonomies' => 0,
+            'hub_pages' => 0
+        );
+        
+        // Total
+        $stats['total'] = $this->get_indexed_count();
+        
+        // Par type
+        $by_type = $wpdb->get_results( 
+            "SELECT post_type, COUNT(*) as count FROM {$this->table_name} GROUP BY post_type",
+            ARRAY_A 
+        );
+        
+        foreach ( $by_type as $row ) {
+            $stats['by_type'][ $row['post_type'] ] = (int) $row['count'];
+        }
+        
+        // Avec taxonomies
+        $stats['with_taxonomies'] = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE taxonomy_terms IS NOT NULL AND taxonomy_terms != ''"
+        );
+        
+        // Pages hub (score > 30)
+        $stats['hub_pages'] = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$this->table_name} WHERE hub_score > 30"
+        );
+        
+        return $stats;
     }
 }
