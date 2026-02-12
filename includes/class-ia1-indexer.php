@@ -70,10 +70,16 @@ class IA1_Indexer {
     public function index_post( $post ) {
         global $wpdb;
         
-        // Nettoyer le contenu
-        $content = wp_strip_all_tags( $post->post_content );
+        // CORRECTION v3.2.3 : Rendre le contenu (Gutenberg, shortcodes) AVANT de nettoyer
+        $rendered_content = apply_filters( 'the_content', $post->post_content );
+        $content = wp_strip_all_tags( $rendered_content );
         $content = preg_replace( '/\s+/', ' ', $content );
         $content = trim( $content );
+        
+        // CORRECTION v3.2.3 : Enrichir l'indexation des produits WooCommerce
+        if ( $post->post_type === 'product' && function_exists( 'wc_get_product' ) ) {
+            $content = $this->enrich_woocommerce_product_content( $post, $content );
+        }
         
         // Extraire TOUTES les taxonomies (catégories, tags, taxonomies custom)
         $taxonomy_terms = $this->get_all_taxonomy_terms( $post->ID );
@@ -107,6 +113,99 @@ class IA1_Indexer {
         );
         
         return true;
+    }
+    
+    /**
+     * Enrichit le contenu d'un produit WooCommerce avec TOUTES ses métadonnées
+     * CORRECTION v3.2.3 : Les produits WooCommerce ont souvent peu de contenu dans post_content
+     * mais beaucoup d'infos dans les métadonnées (prix, SKU, description courte, etc.)
+     */
+    private function enrich_woocommerce_product_content( $post, $content ) {
+        $product = wc_get_product( $post->ID );
+        
+        if ( ! $product ) {
+            return $content;
+        }
+        
+        $enriched_parts = array();
+        
+        // Contenu existant (description longue)
+        if ( ! empty( $content ) ) {
+            $enriched_parts[] = $content;
+        }
+        
+        // Description courte (très importante pour les produits)
+        $short_description = $product->get_short_description();
+        if ( ! empty( $short_description ) ) {
+            $enriched_parts[] = wp_strip_all_tags( $short_description );
+        }
+        
+        // Prix (formaté pour la recherche)
+        $price = $product->get_price();
+        if ( ! empty( $price ) ) {
+            $enriched_parts[] = "Prix : " . $price . " euros";
+            $enriched_parts[] = $price . "€";
+        }
+        
+        // SKU (référence produit)
+        $sku = $product->get_sku();
+        if ( ! empty( $sku ) ) {
+            $enriched_parts[] = "Référence : " . $sku;
+            $enriched_parts[] = "SKU : " . $sku;
+        }
+        
+        // Type de produit (CD, vinyle, etc.)
+        $product_type = $product->get_type();
+        $enriched_parts[] = "Type : " . $product_type;
+        
+        // Stock status
+        $stock_status = $product->get_stock_status();
+        if ( $stock_status === 'instock' ) {
+            $enriched_parts[] = "En stock";
+            $enriched_parts[] = "Disponible";
+        } else {
+            $enriched_parts[] = "Rupture de stock";
+        }
+        
+        // Catégories produits (ex: "CD", "Vinyle", "Merchandising")
+        $categories = wp_get_post_terms( $post->ID, 'product_cat', array( 'fields' => 'names' ) );
+        if ( ! empty( $categories ) && ! is_wp_error( $categories ) ) {
+            foreach ( $categories as $category ) {
+                $enriched_parts[] = "Catégorie : " . $category;
+                $enriched_parts[] = $category;
+            }
+        }
+        
+        // Tags produits
+        $tags = wp_get_post_terms( $post->ID, 'product_tag', array( 'fields' => 'names' ) );
+        if ( ! empty( $tags ) && ! is_wp_error( $tags ) ) {
+            foreach ( $tags as $tag ) {
+                $enriched_parts[] = $tag;
+            }
+        }
+        
+        // Attributs (taille, couleur, format, etc.)
+        $attributes = $product->get_attributes();
+        if ( ! empty( $attributes ) ) {
+            foreach ( $attributes as $attribute ) {
+                if ( is_a( $attribute, 'WC_Product_Attribute' ) ) {
+                    $values = $attribute->get_options();
+                    if ( is_array( $values ) ) {
+                        foreach ( $values as $value ) {
+                            $term = get_term( $value );
+                            if ( $term && ! is_wp_error( $term ) ) {
+                                $enriched_parts[] = $term->name;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Combiner tout le contenu enrichi
+        $enriched_content = implode( ' ', array_filter( $enriched_parts ) );
+        
+        return $enriched_content;
     }
     
     /**
