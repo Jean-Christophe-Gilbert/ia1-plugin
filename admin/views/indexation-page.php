@@ -1,6 +1,6 @@
 <?php
 /**
- * Template de la page d'indexation
+ * Page d'indexation IA1
  *
  * @package IA1
  */
@@ -9,124 +9,103 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-// Récupérer les stats
-$indexer = new IA1_Indexer();
-$indexed_count = $indexer->get_indexed_count();
+// Statistiques d'indexation
+global $wpdb;
+$table_name = $wpdb->prefix . 'ia1_index';
 
-// Compter les posts publiés
-$total_posts = wp_count_posts( 'post' )->publish;
-$total_pages = wp_count_posts( 'page' )->publish;
-$total_products = post_type_exists( 'product' ) ? wp_count_posts( 'product' )->publish : 0;
-$total_content = $total_posts + $total_pages + $total_products;
+$stats = array(
+    'total' => $wpdb->get_var( "SELECT COUNT(*) FROM $table_name" ),
+    'posts' => $wpdb->get_var( "SELECT COUNT(*) FROM $table_name WHERE post_type = 'post'" ),
+    'pages' => $wpdb->get_var( "SELECT COUNT(*) FROM $table_name WHERE post_type = 'page'" ),
+    'products' => $wpdb->get_var( "SELECT COUNT(*) FROM $table_name WHERE post_type = 'product'" ),
+);
 ?>
 
-<div class="wrap ia1-admin-wrap">
-    <div class="ia1-admin-container">
-        
-        <!-- Header -->
-        <h1 class="ia1-admin-title">
-            <img src="https://ia1.fr/wp-content/uploads/2026/01/cropped-Gemini_Generated_Image_e2r4dee2r4dee2r4.png" alt="IA1 Logo" class="ia1-logo">
-            Indexation IA1
-        </h1>
-        
-        <!-- Notifications -->
-        <div id="ia1-notifications"></div>
+<div class="wrap">
+    <h1>Indexation IA1</h1>
+    
+    <div class="ia1-indexation-page">
         
         <!-- Statistiques -->
-        <div class="ia1-section">
-            <h2 class="ia1-section-title">📊 Statistiques</h2>
+        <div class="ia1-card">
+            <h2><span class="dashicons dashicons-chart-bar"></span> Statistiques</h2>
             
-            <div class="ia1-indexation-stats">
+            <div class="ia1-stats-grid">
                 <div class="ia1-stat-box">
-                    <h3>Documents indexés</h3>
-                    <div class="ia1-stat-number"><?php echo number_format_i18n( $indexed_count ); ?></div>
+                    <div class="ia1-stat-label">Documents indexés</div>
+                    <div class="ia1-stat-value"><?php echo esc_html( $stats['total'] ); ?></div>
                 </div>
                 
                 <div class="ia1-stat-box">
-                    <h3>Articles</h3>
-                    <div class="ia1-stat-number"><?php echo number_format_i18n( $total_posts ); ?></div>
+                    <div class="ia1-stat-label">Articles</div>
+                    <div class="ia1-stat-value"><?php echo esc_html( $stats['posts'] ); ?></div>
                 </div>
                 
                 <div class="ia1-stat-box">
-                    <h3>Pages</h3>
-                    <div class="ia1-stat-number"><?php echo number_format_i18n( $total_pages ); ?></div>
+                    <div class="ia1-stat-label">Pages</div>
+                    <div class="ia1-stat-value"><?php echo esc_html( $stats['pages'] ); ?></div>
                 </div>
                 
-                <?php if ( $total_products > 0 ) : ?>
                 <div class="ia1-stat-box">
-                    <h3>Produits</h3>
-                    <div class="ia1-stat-number"><?php echo number_format_i18n( $total_products ); ?></div>
+                    <div class="ia1-stat-label">Produits</div>
+                    <div class="ia1-stat-value"><?php echo esc_html( $stats['products'] ); ?></div>
                 </div>
-                <?php endif; ?>
             </div>
         </div>
         
         <!-- Actions -->
-        <div class="ia1-section">
-            <h2 class="ia1-section-title">🔄 Actions</h2>
+        <div class="ia1-card">
+            <h2><span class="dashicons dashicons-admin-tools"></span> Actions</h2>
             
             <p class="description">
-                L'indexation permet à IA1 de connaître le contenu de votre site pour pouvoir y répondre.
-                Elle s'exécute automatiquement lors de la publication de nouveaux contenus, mais vous pouvez
-                aussi la relancer manuellement ici.
+                L'indexation permet à IA1 de connaître le contenu de votre site pour pouvoir y répondre. 
+                Elle s'exécute automatiquement lors de la publication de nouveaux contenus, mais vous pouvez aussi la relancer manuellement ici.
             </p>
             
-            <div style="margin-top: 20px;">
-                <button type="button" id="ia1-start-indexation" class="button button-primary button-large">
-                    🚀 Réindexer tout le contenu
+            <p>
+                <button type="button" class="button button-primary" id="ia1-reindex-btn">
+                    <span class="dashicons dashicons-update"></span> Réindexer tout le contenu
                 </button>
-                <p class="description" style="margin-top: 10px;">
-                    Cette opération peut prendre quelques minutes selon la taille de votre site.
-                </p>
-            </div>
+            </p>
             
-            <!-- Progress bar -->
-            <div id="ia1-indexation-progress" style="display: none; margin-top: 20px;">
-                <div class="ia1-progress-bar">
-                    <div class="ia1-progress-fill" style="width: 0%;">0%</div>
-                </div>
-                <p id="ia1-indexation-status" style="text-align: center; margin-top: 10px;"></p>
-            </div>
+            <p class="description">
+                Cette opération peut prendre quelques minutes selon la taille de votre site.
+            </p>
+            
+            <div id="ia1-indexation-result" style="display: none; margin-top: 15px;"></div>
         </div>
         
         <!-- Indexation automatique -->
-        <div class="ia1-section">
-            <h2 class="ia1-section-title">⚙️ Indexation automatique</h2>
+        <div class="ia1-card">
+            <h2><span class="dashicons dashicons-update"></span> Indexation automatique</h2>
             
             <table class="form-table">
                 <tr>
                     <th scope="row">Indexation à la publication</th>
                     <td>
                         <label>
-                            <input type="checkbox" id="ia1_auto_index" checked disabled>
+                            <input type="checkbox" checked disabled>
                             Indexer automatiquement les nouveaux contenus
                         </label>
-                        <p class="description">
-                            Cette option est toujours activée pour garantir que votre IA reste à jour.
-                        </p>
+                        <p class="description">Cette option est toujours activée pour garantir que votre IA reste à jour.</p>
                     </td>
                 </tr>
             </table>
         </div>
         
         <!-- Informations -->
-        <div class="ia1-section">
-            <h2 class="ia1-section-title">ℹ️ Informations</h2>
+        <div class="ia1-card ia1-info-box">
+            <h2><span class="dashicons dashicons-info"></span> Informations</h2>
             
-            <div class="notice notice-info inline">
-                <p>
-                    <strong>Que fait l'indexation ?</strong><br>
-                    L'indexation analyse vos articles, pages et produits pour permettre à IA1 de les comprendre
-                    et d'y répondre. Le contenu est stocké localement dans votre base de données WordPress.
-                </p>
-            </div>
+            <h3>Que fait l'indexation ?</h3>
+            <p>
+                L'indexation analyse vos articles, pages et produits pour permettre à IA1 de les comprendre et d'y répondre. 
+                Le contenu est stocké localement dans votre base de données WordPress.
+            </p>
             
-            <div class="notice notice-warning inline" style="margin-top: 10px;">
-                <p>
-                    <strong>Note :</strong> Seul le contenu <strong>publié</strong> est indexé. Les brouillons
-                    et les contenus privés ne sont pas accessibles à l'IA.
-                </p>
-            </div>
+            <p class="ia1-warning">
+                <strong>Note :</strong> Seul le contenu publié est indexé. Les brouillons et les contenus privés ne sont pas accessibles à l'IA.
+            </p>
         </div>
         
     </div>
@@ -134,62 +113,46 @@ $total_content = $total_posts + $total_pages + $total_products;
 
 <script>
 jQuery(document).ready(function($) {
-    
-    $('#ia1-start-indexation').on('click', function() {
-        const $btn = $(this);
-        const $progress = $('#ia1-indexation-progress');
-        const $progressFill = $('.ia1-progress-fill');
-        const $status = $('#ia1-indexation-status');
+    $('#ia1-reindex-btn').on('click', function() {
+        var $btn = $(this);
+        var $result = $('#ia1-indexation-result');
         
-        if (!confirm('Êtes-vous sûr de vouloir réindexer tout le contenu ?')) {
-            return;
-        }
-        
-        $btn.prop('disabled', true).text('Indexation en cours...');
-        $progress.show();
-        $progressFill.css('width', '10%').text('10%');
-        $status.text('Préparation...');
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update spin"></span> Indexation en cours...');
+        $result.hide();
         
         $.ajax({
             url: ajaxurl,
             type: 'POST',
             data: {
                 action: 'ia1_reindex_content',
-                nonce: '<?php echo wp_create_nonce( 'ia1_admin' ); ?>'
+                nonce: ia1Admin.nonce
             },
             success: function(response) {
                 if (response.success) {
-                    $progressFill.css('width', '100%').text('100%');
-                    $status.html('<strong style="color: #00a32a;">✓ Indexation terminée !</strong> ' + 
-                                response.data.indexed + ' documents indexés.');
+                    $result.html(
+                        '<div class="notice notice-success inline"><p><strong>✓ ' + response.data.message + '</strong><br>' +
+                        'Documents indexés : ' + response.data.indexed + '</p></div>'
+                    ).show();
                     
+                    // Recharger la page après 2 secondes pour mettre à jour les stats
                     setTimeout(function() {
                         location.reload();
                     }, 2000);
                 } else {
-                    $status.html('<strong style="color: #d63638;">✗ Erreur :</strong> ' + response.data.message);
+                    $result.html(
+                        '<div class="notice notice-error inline"><p><strong>✗ Erreur :</strong> ' + response.data.message + '</p></div>'
+                    ).show();
                 }
             },
             error: function() {
-                $status.html('<strong style="color: #d63638;">✗ Erreur de connexion</strong>');
+                $result.html(
+                    '<div class="notice notice-error inline"><p><strong>✗ Erreur réseau</strong></p></div>'
+                ).show();
             },
             complete: function() {
-                $btn.prop('disabled', false).text('🚀 Réindexer tout le contenu');
+                $btn.prop('disabled', false).html('<span class="dashicons dashicons-update"></span> Réindexer tout le contenu');
             }
         });
-        
-        // Animation de la barre de progression
-        let progress = 10;
-        const interval = setInterval(function() {
-            if (progress < 90) {
-                progress += 5;
-                $progressFill.css('width', progress + '%').text(progress + '%');
-                $status.text('Indexation en cours... ' + progress + '%');
-            } else {
-                clearInterval(interval);
-            }
-        }, 500);
     });
-    
 });
 </script>
