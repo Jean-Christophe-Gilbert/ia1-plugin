@@ -1,6 +1,11 @@
 <?php
 /**
- * Gestion de l'indexation et de la recherche - VERSION AMÉLIORÉE
+ * Gestion de l'indexation et de la recherche - VERSION AMÉLIORÉE v3.2.4
+ *
+ * Améliorations v3.2.4 :
+ * - Correction : ajout de "qui" dans la détection d'intention (manquant en v3.2.3)
+ * - Expansion des synonymes français génériques (créé ↔ fondé ↔ lancé ↔ à l'origine…)
+ * - Score différencié : mots originaux (poids fort) vs synonymes (poids réduit)
  *
  * @package IA1
  */
@@ -328,13 +333,29 @@ class IA1_Indexer {
         
         // Détecter l'intention de la question
         $intent = $this->detect_search_intent( $query_lower );
-        
-        // Construction de la clause WHERE avec recherche enrichie
-        $where_parts = array();
+
+        // Expansion des mots-clés avec synonymes
+        // Les mots originaux gardent un poids fort, les synonymes un poids réduit
+        $original_words     = array_values( $query_words );
+        $synonym_only_words = array();
+        $all_words          = array();
+
         foreach ( $query_words as $word ) {
+            $synonyms = $this->expand_with_synonyms( $word );
+            foreach ( $synonyms as $syn ) {
+                $all_words[] = $syn;
+                if ( $syn !== $word ) {
+                    $synonym_only_words[] = $syn;
+                }
+            }
+        }
+        $all_words          = array_unique( $all_words );
+        $synonym_only_words = array_unique( $synonym_only_words );
+        
+        // Construction de la clause WHERE avec tous les mots (originaux + synonymes)
+        $where_parts = array();
+        foreach ( $all_words as $word ) {
             $word_safe = $wpdb->esc_like( $word );
-            
-            // Chercher dans le texte enrichi (inclut taxonomies)
             $where_parts[] = $wpdb->prepare(
                 "(LOWER(searchable_text) LIKE %s)",
                 '%' . $word_safe . '%'
@@ -343,23 +364,34 @@ class IA1_Indexer {
         
         $where = implode( ' OR ', $where_parts );
         
-        // Construire les parties du score pour TOUS les mots
-        $score_parts = array();
+        // Score sur les mots originaux (poids fort)
+        $score_parts    = array();
         $prepare_values = array();
         
-        foreach ( $query_words as $word ) {
+        foreach ( $original_words as $word ) {
             $word_safe = $wpdb->esc_like( $word );
             
-            // Ajouter au SQL : fréquence dans titre
             $score_parts[] = "(LENGTH(LOWER(title)) - LENGTH(REPLACE(LOWER(title), %s, ''))) * 15";
             $prepare_values[] = $word_safe;
             
-            // Ajouter au SQL : fréquence dans taxonomies
             $score_parts[] = "(LENGTH(LOWER(taxonomy_terms)) - LENGTH(REPLACE(LOWER(taxonomy_terms), %s, ''))) * 20";
             $prepare_values[] = $word_safe;
             
-            // Ajouter au SQL : fréquence dans contenu
             $score_parts[] = "(LENGTH(LOWER(content)) - LENGTH(REPLACE(LOWER(content), %s, ''))) * 2";
+            $prepare_values[] = $word_safe;
+        }
+
+        // Score sur les synonymes (poids réduit — améliore le rappel sans écraser le ranking)
+        foreach ( $synonym_only_words as $word ) {
+            $word_safe = $wpdb->esc_like( $word );
+
+            $score_parts[] = "(LENGTH(LOWER(title)) - LENGTH(REPLACE(LOWER(title), %s, ''))) * 8";
+            $prepare_values[] = $word_safe;
+
+            $score_parts[] = "(LENGTH(LOWER(taxonomy_terms)) - LENGTH(REPLACE(LOWER(taxonomy_terms), %s, ''))) * 10";
+            $prepare_values[] = $word_safe;
+
+            $score_parts[] = "(LENGTH(LOWER(content)) - LENGTH(REPLACE(LOWER(content), %s, ''))) * 1";
             $prepare_values[] = $word_safe;
         }
         
@@ -413,6 +445,63 @@ class IA1_Indexer {
     }
     
     /**
+     * Dictionnaire de synonymes français génériques
+     * Relations sémantiques universelles, indépendantes du type de site
+     */
+    private function get_synonym_groups() {
+        return array(
+            // Création / fondation
+            'créer'       => array( 'créer', 'créé', 'créateur', 'créatrice', 'fonder', 'fondé', 'fondateur', 'fondatrice', 'fonde', 'lancer', 'lancé', 'initier', 'initié', 'initiateur', 'à l\'origine', 'inventer', 'inventé', 'inventeur' ),
+            'créé'        => array( 'créer', 'créé', 'créateur', 'créatrice', 'fonder', 'fondé', 'fondateur', 'fondatrice', 'fonde', 'lancé', 'initiateur', 'à l\'origine' ),
+            'créateur'    => array( 'créateur', 'créatrice', 'fondateur', 'fondatrice', 'initiateur', 'inventeur', 'à l\'origine', 'auteur' ),
+            'fondateur'   => array( 'fondateur', 'fondatrice', 'créateur', 'créatrice', 'fondé', 'fonde', 'à l\'origine', 'lancé' ),
+            'fondé'       => array( 'fondé', 'fonde', 'créé', 'lancé', 'fondateur', 'créateur', 'à l\'origine' ),
+            'origine'     => array( 'origine', 'à l\'origine', 'fondateur', 'créateur', 'initiateur', 'source' ),
+
+            // Direction / responsabilité
+            'diriger'     => array( 'diriger', 'dirigé', 'directeur', 'directrice', 'gérer', 'géré', 'gérant', 'responsable', 'piloter', 'piloté', 'manager', 'managé', 'chef' ),
+            'dirigé'      => array( 'dirigé', 'directeur', 'directrice', 'géré', 'responsable', 'chef', 'piloté' ),
+            'directeur'   => array( 'directeur', 'directrice', 'dirigeant', 'responsable', 'gérant', 'chef', 'manager', 'dg', 'pdg' ),
+            'responsable' => array( 'responsable', 'directeur', 'directrice', 'gérant', 'chef', 'manager', 'dirigeant' ),
+
+            // Réalisation / production
+            'réaliser'    => array( 'réaliser', 'réalisé', 'réalisateur', 'produire', 'produit', 'producteur', 'faire', 'fait', 'fabriquer', 'fabriqué' ),
+            'réalisé'     => array( 'réalisé', 'réalisateur', 'produit', 'producteur', 'fait', 'fabriqué' ),
+            'produire'    => array( 'produire', 'produit', 'producteur', 'réaliser', 'réalisé', 'réalisateur', 'fabriquer', 'fabriqué' ),
+
+            // Écriture / conception
+            'écrire'      => array( 'écrire', 'écrit', 'auteur', 'auteure', 'rédiger', 'rédigé', 'rédacteur', 'composer', 'composé', 'compositeur' ),
+            'écrit'       => array( 'écrit', 'auteur', 'auteure', 'rédigé', 'rédacteur', 'composé', 'compositeur' ),
+            'auteur'      => array( 'auteur', 'auteure', 'écrit', 'rédacteur', 'compositeur', 'créateur', 'concepteur' ),
+
+            // Contact / localisation
+            'contacter'   => array( 'contacter', 'contact', 'joindre', 'appeler', 'téléphone', 'email', 'adresse', 'coordonnées' ),
+            'adresse'     => array( 'adresse', 'localisation', 'lieu', 'endroit', 'où', 'situé', 'coordonnées' ),
+
+            // Prix / coût
+            'prix'        => array( 'prix', 'coût', 'tarif', 'montant', 'valeur', 'combien', 'euros', 'payer' ),
+            'tarif'       => array( 'tarif', 'prix', 'coût', 'montant', 'combien', 'euros' ),
+        );
+    }
+
+    /**
+     * Expanse un mot vers ses synonymes
+     * Retourne un tableau contenant le mot original et ses synonymes
+     */
+    private function expand_with_synonyms( $word ) {
+        $synonyms   = $this->get_synonym_groups();
+        $word_lower = strtolower( $word );
+
+        foreach ( $synonyms as $key => $group ) {
+            if ( $word_lower === $key || in_array( $word_lower, $group ) ) {
+                return array_unique( $group );
+            }
+        }
+
+        return array( $word );
+    }
+
+    /**
      * Détecte l'intention de la recherche
      */
     private function detect_search_intent( $query ) {
@@ -444,8 +533,8 @@ class IA1_Indexer {
             $intent['looking_for_list'] = true;
         }
         
-        // Recherche spécifique (question avec "quel", "où", "comment")
-        if ( preg_match( '/^(quel|quelle|où|comment|pourquoi|quand)/', $query ) ) {
+        // Recherche spécifique (question avec "qui", "quel", "où", "comment", etc.)
+        if ( preg_match( '/^(qui|quel|quelle|où|comment|pourquoi|quand)/', $query ) ) {
             $intent['looking_for_specific'] = true;
             $intent['type'] = 'specific';
         }
