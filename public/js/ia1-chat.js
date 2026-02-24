@@ -18,10 +18,20 @@
          * Initialise un widget de chat
          */
         function initChatWidget($widget) {
-            const $body = $widget.find('.ia1-chat-body');
             const $input = $widget.find('.ia1-chat-input');
             const $sendBtn = $widget.find('.ia1-chat-send-btn');
             const $loader = $widget.find('.ia1-chat-loader');
+            const $inputContainer = $widget.find('.ia1-chat-input-container');
+            const $welcome = $widget.find('.ia1-chat-welcome');
+
+            // Le chat-body sera créé dynamiquement au premier message
+            let $body = null;
+
+            function ensureChatBody() {
+                if ($body && $body.length) return;
+                $body = $('<div>').addClass('ia1-chat-body');
+                $inputContainer.before($body);
+            }
             
             // Auto-resize du textarea
             $input.on('input', function() {
@@ -54,6 +64,10 @@
                 $input.prop('disabled', true);
                 $sendBtn.prop('disabled', true);
                 
+                // Créer le chat-body si nécessaire et masquer le message de bienvenue
+                ensureChatBody();
+                $welcome.hide();
+
                 // Afficher le message de l'utilisateur
                 appendMessage('user', question);
                 

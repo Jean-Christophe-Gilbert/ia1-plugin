@@ -11,23 +11,11 @@
         </div>
     </div>
     
-    <!-- Corps du chat (messages) -->
-    <div class="ia1-chat-body" style="height: <?php echo esc_attr( $atts['height'] ); ?>;">
-        <!-- Message de bienvenue -->
-        <div class="ia1-message ia1-message-assistant">
-            <div class="ia1-message-avatar">
-                <?php echo esc_html( substr( $customization['avatar_initials'], 0, 1 ) ); ?>
-            </div>
-            <div class="ia1-message-content">
-                <div class="ia1-message-text">
-                    <?php echo esc_html( $customization['welcome_message'] ); ?>
-                </div>
-            </div>
-        </div>
-    </div>
-    
     <!-- Zone de saisie -->
     <div class="ia1-chat-input-container">
+        <p class="ia1-chat-welcome">
+            <?php echo esc_html( $customization['welcome_message'] ); ?>
+        </p>
         <div class="ia1-chat-input-wrapper">
             <textarea 
                 class="ia1-chat-input" 
