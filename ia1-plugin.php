@@ -8,8 +8,8 @@
  * Requires PHP: 7.4
  * Author: IA1
  * Author URI: https://ia1.fr
- * License: GPL v3 or later
- * License URI: https://www.gnu.org/licenses/gpl-3.0.html
+ * License: GPL-2.0-or-later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: ia1
  * Domain Path: /languages
  */
