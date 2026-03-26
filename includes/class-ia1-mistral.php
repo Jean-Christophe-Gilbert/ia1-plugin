@@ -24,13 +24,9 @@ class IA1_Mistral {
         $this->model = $settings['model'];
         $this->temperature = $settings['temperature'];
         
-        // Utiliser le nouveau prompt système amélioré
         $this->system_prompt = $this->get_improved_system_prompt();
     }
     
-    /**
-     * Prompt système amélioré pour plus de précision
-     */
     private function get_improved_system_prompt() {
         $assistant_name = get_option( 'ia1_assistant_name', 'IA1' );
         $site_name = get_bloginfo( 'name' );
@@ -102,13 +98,9 @@ Question : « Faites-vous des réductions ? »
             throw new Exception( 'Clé API Mistral non configurée' );
         }
         
-        // Construire le contexte avec le nouveau format amélioré
         $context_text = $this->build_improved_context_text( $contexts );
-        
-        // Construire le prompt utilisateur avec le nouveau format
         $user_prompt = $this->build_improved_user_prompt( $question, $context_text, $contexts );
         
-        // Préparer les messages
         $messages = array(
             array(
                 'role' => 'system',
@@ -120,26 +112,26 @@ Question : « Faites-vous des réductions ? »
             )
         );
         
-        // Appeler l'API
         $response = $this->call_api( $messages );
         
-        // Extraire la réponse
         $text = $response['choices'][0]['message']['content'] ?? 'Pas de réponse';
-        
-        // Préparer les sources
         $sources = $this->prepare_sources( $contexts );
         
-        return array(
-            'text' => $text,
-            'sources' => $sources,
-            'model' => $this->model,
-            'tokens_used' => $response['usage'] ?? null
+        $result = array(
+            'text'        => $text,
+            'sources'     => $sources,
+            'model'       => $this->model,
+            'tokens_used' => $response['usage'] ?? null,
         );
+
+        // Log RAG — enregistrement silencieux, n'affecte pas la réponse
+        if ( class_exists( 'IA1_Logger' ) ) {
+            IA1_Logger::log_query( $question, $contexts, $result );
+        }
+
+        return $result;
     }
     
-    /**
-     * Construit le texte de contexte de manière structurée et hiérarchisée
-     */
     private function build_improved_context_text( $contexts ) {
         if ( empty( $contexts ) ) {
             return 'Aucune information pertinente n\'a été trouvée dans le contenu du site pour répondre à cette question.';
@@ -149,14 +141,9 @@ Question : « Faites-vous des réductions ? »
         
         foreach ( $contexts as $i => $context ) {
             $source_number = $i + 1;
-            
-            // Déterminer le type de contenu pour aider l'IA
             $type_label = $this->get_content_type_label( $context['post_type'] );
-            
-            // Extraire un contenu pertinent (pas juste 300 caractères arbitraires)
             $content = $this->extract_relevant_content( $context );
             
-            // Format structuré et clair
             $context_parts[] = sprintf(
                 "=== SOURCE %d ===
 Type : %s
@@ -176,28 +163,18 @@ Contenu :
         return implode( "\n\n", $context_parts );
     }
     
-    /**
-     * Extrait le contenu pertinent de manière intelligente
-     */
     private function extract_relevant_content( $context ) {
         $content = $context['content'];
         
-        // Si le contenu est court (< 500 caractères), le prendre en entier
         if ( strlen( $content ) <= 500 ) {
             return trim( $content );
         }
         
-        // Sinon, prendre un extrait intelligent
-        // Option 1 : Si un excerpt existe, l'utiliser
         if ( ! empty( $context['excerpt'] ) && strlen( $context['excerpt'] ) > 50 ) {
             return trim( $context['excerpt'] );
         }
         
-        // Option 2 : Prendre le début du contenu (jusqu'à 600 caractères)
-        // en coupant à la fin d'une phrase
         $excerpt = substr( $content, 0, 600 );
-        
-        // Trouver le dernier point
         $last_period = strrpos( $excerpt, '.' );
         if ( $last_period !== false && $last_period > 200 ) {
             $excerpt = substr( $excerpt, 0, $last_period + 1 );
@@ -206,13 +183,10 @@ Contenu :
         return trim( $excerpt ) . '...';
     }
     
-    /**
-     * Retourne un label compréhensible pour le type de contenu
-     */
     private function get_content_type_label( $post_type ) {
         $labels = array(
-            'post' => 'Article de blog',
-            'page' => 'Page du site',
+            'post'    => 'Article de blog',
+            'page'    => 'Page du site',
             'product' => 'Produit',
             'service' => 'Service',
         );
@@ -220,9 +194,6 @@ Contenu :
         return $labels[ $post_type ] ?? ucfirst( $post_type );
     }
     
-    /**
-     * Construit le prompt utilisateur amélioré
-     */
     private function build_improved_user_prompt( $question, $context_text, $contexts ) {
         $num_sources = count( $contexts );
         
@@ -260,17 +231,14 @@ Instructions de réponse :
         );
     }
     
-    /**
-     * Prépare la liste des sources avec plus de détails
-     */
     private function prepare_sources( $contexts ) {
         $sources = array();
         
         foreach ( $contexts as $i => $context ) {
             $sources[] = array(
-                'title' => sprintf( 'Source %d : %s', $i + 1, $context['title'] ),
-                'url' => $context['url'],
-                'post_type' => $context['post_type'],
+                'title'      => sprintf( 'Source %d : %s', $i + 1, $context['title'] ),
+                'url'        => $context['url'],
+                'post_type'  => $context['post_type'],
                 'type_label' => $this->get_content_type_label( $context['post_type'] )
             );
         }
@@ -278,38 +246,32 @@ Instructions de réponse :
         return $sources;
     }
     
-    /**
-     * Appelle l'API Mistral
-     */
     private function call_api( $messages ) {
-        // Nettoyer tous les textes UTF-8 AVANT l'encodage JSON
         $messages = $this->clean_utf8_recursive( $messages );
         
         $body = array(
-            'model' => $this->model,
-            'messages' => $messages,
+            'model'       => $this->model,
+            'messages'    => $messages,
             'temperature' => floatval( $this->temperature ),
-            'max_tokens' => 1500  // Augmenté pour des réponses plus complètes
+            'max_tokens'  => 1500
         );
         
         $json_body = json_encode( $body, JSON_UNESCAPED_UNICODE );
         
-        // Vérifier que l'encodage JSON a réussi
         if ( $json_body === false ) {
             throw new Exception( 'Erreur d\'encodage JSON : ' . json_last_error_msg() );
         }
         
         $response = wp_remote_post( $this->api_url, array(
             'headers' => array(
-                'Content-Type' => 'application/json; charset=utf-8',
+                'Content-Type'  => 'application/json; charset=utf-8',
                 'Authorization' => 'Bearer ' . $this->api_key
             ),
-            'body' => $json_body,
-            'timeout' => 30,
+            'body'      => $json_body,
+            'timeout'   => 30,
             'sslverify' => true
         ));
         
-        // Vérifier les erreurs
         if ( is_wp_error( $response ) ) {
             throw new Exception( 'Erreur de connexion à Mistral AI : ' . $response->get_error_message() );
         }
@@ -330,42 +292,30 @@ Instructions de réponse :
         return $data;
     }
     
-    /**
-     * Nettoie récursivement les caractères UTF-8 mal formés
-     */
     private function clean_utf8_recursive( $data ) {
         if ( is_string( $data ) ) {
-            // Nettoyer la chaîne UTF-8
             return mb_convert_encoding( $data, 'UTF-8', 'UTF-8' );
         }
-        
         if ( is_array( $data ) ) {
             return array_map( array( $this, 'clean_utf8_recursive' ), $data );
         }
-        
         return $data;
     }
     
-    /**
-     * Test de connexion à l'API
-     */
     public function test_connection() {
         try {
             $messages = array(
                 array(
-                    'role' => 'user',
+                    'role'    => 'user',
                     'content' => 'Réponds simplement "OK" si tu me reçois.'
                 )
             );
-            
             $response = $this->call_api( $messages );
-            
             return array(
                 'success' => true,
                 'message' => 'Connexion réussie à Mistral AI',
-                'model' => $this->model
+                'model'   => $this->model
             );
-            
         } catch ( Exception $e ) {
             return array(
                 'success' => false,
